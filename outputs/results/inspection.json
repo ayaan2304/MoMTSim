@@ -1,0 +1,72 @@
+{
+  "MoMTSim_20240722202413_1000_dataset.csv": {
+    "dataset": "MoMTSim file MoMTSim_20240722202413_1000_dataset.csv",
+    "rows": 4225958,
+    "fraud_rows": 2233118,
+    "fraud_pct": 52.8429,
+    "step_min": 0,
+    "step_max": 192,
+    "nulls_total": 0,
+    "type_counts": {
+      "TRANSFER": 2510947,
+      "PAYMENT": 1677798,
+      "CASH_OUT": 27064,
+      "CASH_IN": 8824,
+      "DEBIT": 1325
+    },
+    "type_fraud_rate_pct": {
+      "CASH_IN": 0.0,
+      "CASH_OUT": 0.0,
+      "DEBIT": 0.0,
+      "PAYMENT": 0.0,
+      "TRANSFER": 88.9353
+    }
+  },
+  "synthetic_mobile_money_transaction_dataset.csv": {
+    "dataset": "MoMTSim file synthetic_mobile_money_transaction_dataset.csv",
+    "rows": 1720181,
+    "fraud_rows": 175518,
+    "fraud_pct": 10.2035,
+    "step_min": 0,
+    "step_max": 143,
+    "nulls_total": 0,
+    "type_counts": {
+      "PAYMENT": 667245,
+      "TRANSFER": 569328,
+      "CASH_IN": 384431,
+      "CASH_OUT": 93785,
+      "DEBIT": 5392
+    },
+    "type_fraud_rate_pct": {
+      "CASH_IN": 0.0,
+      "CASH_OUT": 0.0,
+      "DEBIT": 0.0,
+      "PAYMENT": 0.0,
+      "TRANSFER": 30.829
+    }
+  },
+  "momtsim_v1_file": "synthetic_mobile_money_transaction_dataset.csv",
+  "paysim.csv": {
+    "dataset": "PaySim",
+    "rows": 6362620,
+    "fraud_rows": 8213,
+    "fraud_pct": 0.1291,
+    "step_min": 1,
+    "step_max": 743,
+    "nulls_total": 0,
+    "type_counts": {
+      "CASH_OUT": 2237500,
+      "PAYMENT": 2151495,
+      "CASH_IN": 1399284,
+      "TRANSFER": 532909,
+      "DEBIT": 41432
+    },
+    "type_fraud_rate_pct": {
+      "CASH_IN": 0.0,
+      "CASH_OUT": 0.184,
+      "DEBIT": 0.0,
+      "PAYMENT": 0.0,
+      "TRANSFER": 0.7688
+    }
+  }
+}

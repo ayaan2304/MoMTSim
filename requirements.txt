@@ -1,0 +1,10 @@
+# Project dependencies — install with: pip install -r requirements.txt
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+xgboost
+lightgbm
+shap
+pyarrow

@@ -1,0 +1,14 @@
+# Raw datasets are ~1 GB total — download them from the sources in README.md
+data/*.csv
+data/*.parquet
+data/mendeley_meta.json
+
+# Python environment / caches
+.venv/
+.pipcache/
+.tmp/
+__pycache__/
+*.pyc
+
+# Run logs
+outputs_*.log
