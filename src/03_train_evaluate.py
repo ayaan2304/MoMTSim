@@ -18,7 +18,7 @@ Run:  python src/03_train_evaluate.py
 """
 
 # --- Imports ---
-import sys, json, time
+import sys, json, time, gc
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -182,13 +182,12 @@ def run_experiment(name, train_table, test_table, feature_cols,
     bundles via retrain_from to avoid training twice).
     """
     t0 = time.time()
-    # Temporal split of the TRAINING table (USE: gives train/val for fitting,
-    # early stopping, calibration and threshold tuning).
-    tr, va, _ = temporal_split(train_table)
-    Xtr, ytr = tr[feature_cols], tr["isFraud"]
-    Xva, yva = va[feature_cols], va["isFraud"]
-
     if retrain_from is None:
+        # Temporal split of the TRAINING table (USE: gives train/val for
+        # fitting, early stopping, calibration and threshold tuning).
+        tr, va, _ = temporal_split(train_table)
+        Xtr, ytr = tr[feature_cols], tr["isFraud"]
+        Xva, yva = va[feature_cols], va["isFraud"]
         # Train the three models (USE: the only place training happens).
         models = train_ensemble(Xtr, ytr, Xva, yva, feature_cols)
         # Calibrate the ensemble on validation (USE: isotonic regression maps
@@ -199,10 +198,23 @@ def run_experiment(name, train_table, test_table, feature_cols,
         # Threshold from validation only (see best_f1_threshold).
         thr = best_f1_threshold(yva, iso.predict(ensemble_prob(models, Xva)))
         bundle = {"models": models, "iso": iso, "thr": thr}
+        n_train = int(len(Xtr))
+        # Free the training frames (USE: on a ~7 GB machine, holding split
+        # copies of a 6.3M-row table alongside three fitted ensembles gets
+        # the process OOM-killed — this exact failure killed an earlier run
+        # during E6b, silently, after E6a).
+        del tr, va, Xtr, ytr, Xva, yva
+        gc.collect()
     else:
         # Reuse a previously trained bundle (USE: cross-dataset tests must use
         # the EXACT model + calibrator + threshold from in-domain training).
+        # No split frames are built here at all — only the train-row count is
+        # needed for the metrics table, computed from the step column alone
+        # (USE: avoids copying a multi-GB table we would never use).
         bundle = retrain_from
+        smin = int(train_table["step_raw"].min()); smax = int(train_table["step_raw"].max())
+        cut1 = smin + 0.70 * (smax - smin)
+        n_train = int((train_table["step_raw"] <= cut1).sum())
 
     # Temporal TEST split of the test table (USE: for cross-dataset runs this
     # is the other dataset's future period — never its training rows).
@@ -213,7 +225,7 @@ def run_experiment(name, train_table, test_table, feature_cols,
     # the validation threshold was tuned on).
     prob = bundle["iso"].predict(ensemble_prob(bundle["models"], Xte))
     m = evaluate(yte, prob, bundle["thr"])
-    m.update({"experiment": name, "train_rows": int(len(Xtr)),
+    m.update({"experiment": name, "train_rows": n_train,
               "test_rows": int(len(Xte)), "minutes": round((time.time() - t0) / 60, 2)})
     print(f"{name}: PR-AUC={m['pr_auc']:.4f} ROC-AUC={m['roc_auc']:.4f} "
           f"Recall={m['recall']:.4f} F1={m['f1']:.4f} MCC={m['mcc']:.4f} "
@@ -262,6 +274,25 @@ def main():
     m4, _ = run_experiment("E4_PaySim_to_MoMTSim", pay, mom, FEATURES,
                            retrain_from=bundle_pay, curves=curves, cms=cms)
     all_metrics.append(m4)
+
+    # ---------- Feature importance (LightGBM) for both in-domain models -----
+    # USE: drawn HERE, while both bundles still exist — the PaySim bundle is
+    # freed right after (memory hygiene, see the del below) and the E6/SHAP
+    # stages that follow do not need it. A first, cheap look at what each
+    # model relies on; the SHAP section below is the rigorous version.
+    for bundle, tag in [(bundle_mom, "momtsim"), (bundle_pay, "paysim")]:
+        imp = pd.Series(bundle["models"]["lgbm"].feature_importances_, index=FEATURES)
+        top = imp.sort_values(ascending=False).head(15)[::-1]
+        fig, ax = plt.subplots(figsize=(7, 5))
+        ax.barh(top.index, top.values, color="#55A868")
+        ax.set_title(f"LightGBM feature importance — trained on {tag}")
+        fig.tight_layout(); fig.savefig(FIG_DIR / f"eval_importance_{tag}.png", dpi=150); plt.close(fig)
+
+    # Free the PaySim ensemble (USE: three fitted ensembles + two big tables
+    # in RAM at once OOM-killed an earlier run during E6b; bundle_pay has
+    # served its purpose — E2 metrics, E4 test, importance figure are done).
+    del bundle_pay
+    gc.collect()
 
     # E6 — ablation without the simulator-artifact feature (USE: trains a
     # fresh MoMTSim ensemble on FEATURES minus 'amount_equals_balance' and
@@ -334,18 +365,14 @@ def main():
     ax.set_ylim(0, 1); ax.legend(); ax.set_title("Experiment comparison (higher = better)")
     fig.tight_layout(); fig.savefig(FIG_DIR / "eval_metric_comparison.png", dpi=150); plt.close(fig)
 
-    # ---------- Feature importance (LightGBM) for both in-domain models -----
-    # USE: a first, cheap look at what each model relies on; the SHAP section
-    # below gives the rigorous, comparable version.
-    for bundle, tag in [(bundle_mom, "momtsim"), (bundle_pay, "paysim")]:
-        imp = pd.Series(bundle["models"]["lgbm"].feature_importances_, index=FEATURES)
-        if tag == "momtsim" and len(imp) != len(FEATURES):
-            imp = pd.Series(bundle["models"]["lgbm"].feature_importances_, index=FEATURES)
-        top = imp.sort_values(ascending=False).head(15)[::-1]
-        fig, ax = plt.subplots(figsize=(7, 5))
-        ax.barh(top.index, top.values, color="#55A868")
-        ax.set_title(f"LightGBM feature importance — trained on {tag}")
-        fig.tight_layout(); fig.savefig(FIG_DIR / f"eval_importance_{tag}.png", dpi=150); plt.close(fig)
+    # (LightGBM importance figures were already drawn earlier, right after
+    # E4 — see the note there about freeing the PaySim bundle for memory.)
+
+    # Free the E6 ensemble before SHAP (USE: SHAP only needs the MoMTSim
+    # LightGBM booster; dropping E6's three fitted models first keeps peak
+    # memory down on this small machine).
+    del bundle_e6
+    gc.collect()
 
     # ---------- SHAP: MoMTSim model explained on BOTH test sets ------------
     # USE: XAI-stability result — compute mean |SHAP| per feature for the E1
@@ -357,7 +384,11 @@ def main():
     explainer = shap.TreeExplainer(bundle_mom["models"]["lgbm"].booster_)
     shap_rows = []
     for table, tag in [(mom, "MoMTSim_test"), (pay, "PaySim_test")]:
-        _, _, te = temporal_split(table)
+        # Test split via a single mask (USE: temporal_split() would copy the
+        # whole table three times — for the 6.3M-row PaySim table that is
+        # ~2.6 GB of copies we don't need; here we only need the test rows).
+        smin = int(table["step_raw"].min()); smax = int(table["step_raw"].max())
+        te = table[table["step_raw"] > smin + 0.85 * (smax - smin)]
         sample = te[FEATURES].sample(min(len(te), 3000), random_state=SEED)
         sv = explainer.shap_values(sample)
         sv = sv[1] if isinstance(sv, list) else sv
