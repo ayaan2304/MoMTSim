@@ -285,3 +285,8 @@ Every code section carries a comment explaining what it is used for.
   real mobile-money logs of a multinational provider. Available on Kaggle.
 
 Both datasets are **synthetic** — no real customer transactions are used.
+
+## Results
+
+Full results, interpretation and caveats: **[RESULTS.md](RESULTS.md)**
+(metrics in `outputs/results/metrics.csv`, figures in `outputs/figures/`).
