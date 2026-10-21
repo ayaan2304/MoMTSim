@@ -1,5 +1,6 @@
-# Raw datasets are ~1 GB total — download them from the sources in README.md
-data/*.csv
+# Processed feature caches are regenerable (python src/01_inspect_data.py)
+# and large — they are not stored in git. The raw dataset CSVs ARE in the
+# repo, tracked with Git LFS (see .gitattributes).
 data/*.parquet
 data/mendeley_meta.json
 

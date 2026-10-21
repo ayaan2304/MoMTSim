@@ -115,10 +115,16 @@ Results land in `outputs/results/metrics.csv` (+ `.json`), SHAP rankings in
   `.venv\Scripts\activate` in Step 2)
 
 ### 1. Clone this repository
+The dataset CSVs (~970 MB) are stored in this repo with **Git LFS**, so
+install Git LFS first (https://git-lfs.com), then:
 ```bash
+git lfs install
 git clone https://github.com/ayaan2304/MoMTSim.git
 cd MoMTSim
 ```
+If you cloned without Git LFS you will see small text "pointer" files instead
+of real CSVs in `data/` — fix that with `git lfs pull` inside the repo.
+No Git LFS? Skip the clone's data and use the download script in Step 3.
 
 ### 2. Create a virtual environment and install dependencies
 ```bash
@@ -129,8 +135,15 @@ pip install -r requirements.txt
 Dependencies: pandas, numpy, scikit-learn, matplotlib, seaborn, xgboost,
 lightgbm, shap, pyarrow.
 
-### 3. Download the datasets into `data/`
-Raw CSVs (~1 GB total) are **not** stored in this repo (see `.gitignore`).
+### 3. Get the datasets into `data/`
+The raw CSVs are included in this repo via Git LFS (Step 1) — if `data/`
+already contains the three real CSVs (check sizes: ~157 MB, ~366 MB,
+~494 MB), skip to Step 4. Otherwise download them with the project's own
+script, which verifies MoMTSim against Mendeley's official SHA-256 hashes:
+```bash
+python src/00_download_data.py
+```
+Or fetch them manually from the original sources:
 
 **MoMTSim (both files):**
 1. Open https://data.mendeley.com/datasets/zhj366m53p/2
@@ -235,8 +248,9 @@ e.g. `E1_MoMTSim_to_MoMTSim: PR-AUC=... Recall=...`.
 ```
 ├── README.md
 ├── requirements.txt
-├── .gitignore             # excludes raw CSVs/parquet, venv, caches, logs
-├── data/                  # YOU add the raw CSVs here (Step 3 above)
+├── .gitignore             # excludes parquet caches, venv, logs
+├── .gitattributes         # dataset CSVs tracked with Git LFS
+├── data/                  # raw dataset CSVs (Git LFS) — see Step 3
 ├── src/
 │   ├── config.py          # paths, constants, the 5 harmonised type names
 │   ├── features.py        # THE shared harmonisation + feature pipeline
